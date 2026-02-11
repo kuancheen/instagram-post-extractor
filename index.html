@@ -26,7 +26,7 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <!-- Internal Assets with Cache Bursting -->
-  <link rel="stylesheet" href="style.css?v=1.0.3">
+  <link rel="stylesheet" href="style.css?v=1.1.0">
 </head>
 
 <body>
@@ -43,14 +43,14 @@
           <i data-lucide="instagram"></i>
           <h1>Instagram Post Extractor</h1>
         </div>
-        <p class="subtitle">Extract meta descriptions and text from image posts instantly.</p>
-        <p class="version-tag">Project Version: v1.0.3</p>
+        <p class="subtitle">Extract meta descriptions and text from image posts or direct links instantly.</p>
+        <p class="version-tag">Project Version: v1.1.0</p>
       </header>
 
       <section class="input-section glass">
         <div class="input-group">
-          <input type="text" id="ig-url"
-            placeholder="Paste Instagram post link here (e.g., https://www.instagram.com/p/...)" autocomplete="off">
+          <input type="text" id="ig-url" placeholder="Paste Instagram link or direct image URLs (separated by commas)"
+            autocomplete="off">
           <button id="extract-btn">
             <span>Extract</span>
             <i data-lucide="arrow-right"></i>
@@ -69,6 +69,7 @@
                 <span>Image Preview</span>
               </div>
             </div>
+            <div id="carousel-container" class="carousel-thumbs hidden"></div>
           </div>
 
           <div class="data-card glass">
@@ -108,7 +109,7 @@
 
       <footer class="footer">
         <p>
-          v1.0.3 |
+          v1.1.0 |
           <a href="https://kuancheen.github.io/md-viewer/?https://github.com/kuancheen/instagram-post-extractor/blob/main/README.md"
             target="_blank">README</a> |
           <a href="https://kuancheen.github.io/md-viewer/?https://github.com/kuancheen/instagram-post-extractor/blob/main/CHANGELOG.md"
@@ -123,7 +124,7 @@
   </div>
 
   <!-- Main Logic with Cache Bursting -->
-  <script src="main.js?v=1.0.3"></script>
+  <script src="main.js?v=1.1.0"></script>
 </body>
 
 </html>

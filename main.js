@@ -1,5 +1,5 @@
 // Instagram Post Extractor - Main Application Logic
-// v1.0.3
+// v1.1.0
 
 // Type definitions for CDN globals assumed to be loaded
 // lucide, Tesseract
@@ -25,6 +25,7 @@ const resultSection = document.getElementById('result-container');
 const postImage = document.getElementById('post-image');
 const imagePlaceholder = document.getElementById('image-placeholder');
 const imageLoader = document.getElementById('image-loader');
+const carouselContainer = document.getElementById('carousel-container');
 const postDescription = document.getElementById('post-description');
 const ocrText = document.getElementById('ocr-text');
 const runOcrBtn = document.getElementById('run-ocr-btn');
@@ -34,7 +35,8 @@ const tabContents = document.querySelectorAll('.tab-content');
 const copyBtns = document.querySelectorAll('.copy-btn');
 
 // State
-let currentImageUrl = '';
+let currentImages = [];
+let activeImageIndex = 0;
 
 // Tab switching logic
 tabBtns.forEach(btn => {
@@ -76,9 +78,40 @@ copyBtns.forEach(btn => {
     });
 });
 
+/**
+ * Detects if a URL is a direct image link or from a known media proxy
+ */
+function isDirectImageUrl(url) {
+    const directImageRegex = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
+    const fastDlMediaRegex = /media\.fastdl\.app\/get/i;
+    return directImageRegex.test(url) || fastDlMediaRegex.test(url);
+}
+
+/**
+ * Returns a proxied URL to bypass CORS for images
+ */
+function getProxiedUrl(url) {
+    if (!url) return '';
+    // Use AllOrigins RAW for best compatibility with images
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+}
+
 // Instagram Data Extraction with Retry and Fallback
 async function fetchIGDataWithProxy(url, retries = 2) {
-    const cleanUrl = url.split('?')[0];
+    const urls = url.split(/[\s,]+/).filter(u => u.length > 5);
+
+    // If we have multiple URLs or direct image URLs, process them differently
+    if (urls.length > 1 || isDirectImageUrl(urls[0])) {
+        const images = urls.filter(u => isDirectImageUrl(u));
+        if (images.length > 0) {
+            return {
+                images: images,
+                description: 'Direct image extraction. No Instagram metadata available.'
+            };
+        }
+    }
+
+    const cleanUrl = urls[0].split('?')[0];
     if (!cleanUrl.includes('instagram.com/p/') && !cleanUrl.includes('instagram.com/reels/')) {
         throw new Error('Please enter a valid Instagram post or reel URL.');
     }
@@ -163,7 +196,7 @@ async function fetchIGDataWithProxy(url, retries = 2) {
                     if (!isLoginPage) {
                         localStorage.setItem('last_success_proxy', proxy.name);
                         return {
-                            imageUrl: ogImage,
+                            images: [ogImage],
                             description: ogDescription || 'No description found.'
                         };
                     } else {
@@ -226,6 +259,67 @@ async function runOCR(imageSrc) {
     }
 }
 
+/**
+ * Updates the main preview image and UI state
+ */
+function updateActiveImage(index) {
+    if (!currentImages[index]) return;
+
+    activeImageIndex = index;
+    const url = currentImages[index];
+
+    imageLoader.classList.remove('hidden');
+    postImage.classList.add('hidden');
+    imagePlaceholder.classList.add('hidden');
+
+    // Reset OCR status when switching images
+    ocrStatus.innerHTML = '<i data-lucide="scan"></i><span>Click extract to start OCR</span>';
+    ocrText.value = '';
+    initIcons();
+
+    const proxiedImg = getProxiedUrl(url);
+    postImage.src = proxiedImg;
+
+    postImage.onload = () => {
+        imageLoader.classList.add('hidden');
+        postImage.classList.remove('hidden');
+        runOcrBtn.disabled = false;
+    };
+
+    postImage.onerror = () => {
+        imageLoader.classList.add('hidden');
+        imagePlaceholder.classList.remove('hidden');
+        imagePlaceholder.innerHTML = '<i data-lucide="alert-circle"></i><span>Image Proxy Error</span>';
+        initIcons();
+        showMessage('Could not load this image via proxy.', 'error');
+    };
+
+    // Update thumbnail selection
+    document.querySelectorAll('.carousel-thumb').forEach((thumb, i) => {
+        thumb.classList.toggle('active', i === index);
+    });
+}
+
+/**
+ * Renders multiple thumbnails if a post has multiple images
+ */
+function renderCarousel(images) {
+    carouselContainer.innerHTML = '';
+    if (images.length <= 1) {
+        carouselContainer.classList.add('hidden');
+        return;
+    }
+
+    carouselContainer.classList.remove('hidden');
+    images.forEach((url, index) => {
+        const thumb = document.createElement('div');
+        thumb.className = `carousel-thumb ${index === 0 ? 'active' : ''}`;
+        thumb.innerHTML = `<img src="${getProxiedUrl(url)}" alt="Thumb ${index + 1}">`;
+        thumb.addEventListener('click', () => updateActiveImage(index));
+        carouselContainer.appendChild(thumb);
+    });
+}
+
 // Extraction Trigger
 extractBtn.addEventListener('click', async () => {
     const url = igUrlInput.value.trim();
@@ -236,6 +330,7 @@ extractBtn.addEventListener('click', async () => {
     imageLoader.classList.remove('hidden');
     postImage.classList.add('hidden');
     imagePlaceholder.classList.add('hidden');
+    carouselContainer.classList.add('hidden');
     postDescription.value = '';
     ocrText.value = '';
     runOcrBtn.disabled = true;
@@ -243,27 +338,13 @@ extractBtn.addEventListener('click', async () => {
     try {
         const data = await fetchIGDataWithProxy(url);
 
-        currentImageUrl = data.imageUrl;
+        currentImages = data.images;
         postDescription.value = data.description;
 
-        const proxiedImg = `https://api.allorigins.win/raw?url=${encodeURIComponent(data.imageUrl)}`;
-        postImage.src = proxiedImg;
+        renderCarousel(currentImages);
+        updateActiveImage(0);
 
-        postImage.onload = () => {
-            imageLoader.classList.add('hidden');
-            postImage.classList.remove('hidden');
-            runOcrBtn.disabled = false;
-            extractBtn.disabled = false;
-        };
-
-        postImage.onerror = () => {
-            imageLoader.classList.add('hidden');
-            imagePlaceholder.classList.remove('hidden');
-            imagePlaceholder.innerHTML = '<i data-lucide="alert-circle"></i><span>Image Proxy Error</span>';
-            initIcons();
-            extractBtn.disabled = false;
-            showMessage('Could not load the image via proxy.', 'error');
-        };
+        extractBtn.disabled = false;
 
     } catch (err) {
         console.error('Extraction Error:', err);
@@ -281,8 +362,8 @@ igUrlInput.addEventListener('keypress', (e) => {
 });
 
 runOcrBtn.addEventListener('click', () => {
-    if (currentImageUrl) {
-        const proxiedImg = `https://api.allorigins.win/raw?url=${encodeURIComponent(currentImageUrl)}`;
-        runOCR(proxiedImg);
+    const imageUrl = currentImages[activeImageIndex];
+    if (imageUrl) {
+        runOCR(getProxiedUrl(imageUrl));
     }
 });
