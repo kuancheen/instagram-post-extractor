@@ -82,9 +82,9 @@ copyBtns.forEach(btn => {
  * Detects if a URL is a direct image link or from a known media proxy
  */
 function isDirectImageUrl(url) {
-    const directImageRegex = /\.(jpg|jpeg|png|webp|gif|avif)(\?.*)?$/i;
-    const fastDlMediaRegex = /media\.fastdl\.app\/get/i;
-    return directImageRegex.test(url) || fastDlMediaRegex.test(url);
+    const directImageRegex = /\.(jpg|jpeg|png|webp|gif|avif|heic)/i;
+    const commonHosts = /unsplash\.com|picsum\.photos|fastdl\.app/i;
+    return directImageRegex.test(url) || commonHosts.test(url);
 }
 
 /**
