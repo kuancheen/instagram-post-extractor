@@ -118,18 +118,45 @@ copyBtns.forEach((btn) => {
  */
 function isDirectImageUrl(url) {
     const imageExtPattern = /\.(jpg|jpeg|png|webp|gif|avif|heic)/i;
-    const knownImageHosts = /unsplash\.com|picsum\.photos|fastdl\.app/i;
+    const knownImageHosts = /unsplash\.com|picsum\.photos|fastdl\.app|cdninstagram\.com/i;
     return imageExtPattern.test(url) || knownImageHosts.test(url);
 }
 
 /**
+ * Resolves a FastDL download URL to the actual Instagram CDN URL.
+ * FastDL URLs (media.fastdl.app/get?...&uri=<encoded_cdn_url>) force
+ * a file download via Content-Disposition: attachment, which breaks
+ * <img> display. The real CDN URL is in the `uri` query parameter.
+ *
+ * @param {string} url
+ * @returns {string} The resolved CDN URL, or the original URL if not a FastDL link
+ */
+function resolveFastDLUrl(url) {
+    if (!url.includes('fastdl.app')) return url;
+
+    try {
+        const parsed = new URL(url);
+        const cdnUrl = parsed.searchParams.get('uri');
+        if (cdnUrl) {
+            console.log(`[FastDL] Resolved CDN URL from: ${url.substring(0, 60)}…`);
+            return cdnUrl;
+        }
+    } catch (e) {
+        // Not a valid URL, return as-is
+    }
+    return url;
+}
+
+/**
  * Wraps a URL through AllOrigins RAW to bypass CORS for images.
+ * Automatically resolves FastDL download URLs to CDN URLs first.
  * @param {string} url
  * @returns {string}
  */
 function getProxiedUrl(url) {
     if (!url) return '';
-    return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const resolved = resolveFastDLUrl(url);
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(resolved)}`;
 }
 
 // ──────────────────────────────────────────────
