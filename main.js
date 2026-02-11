@@ -1,5 +1,5 @@
 // Instagram Post Extractor - Main Application Logic
-// v1.0.0
+// v1.0.1
 
 // Type definitions for CDN globals assumed to be loaded
 // lucide, Tesseract
@@ -86,15 +86,28 @@ async function fetchIGDataWithProxy(url, retries = 2) {
     // List of proxies to try
     const proxies = [
         {
+            name: 'AllOrigins (GET)',
             url: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}&ts=${Date.now()}`,
             parse: (res) => res.contents
         },
         {
-            url: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+            name: 'AllOrigins (RAW)',
+            url: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}&ts=${Date.now()}`,
             parse: (res) => res
         },
         {
+            name: 'CORSProxy.io',
+            url: (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+            parse: (res) => res
+        },
+        {
+            name: 'CodeTabs',
             url: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+            parse: (res) => res
+        },
+        {
+            name: 'ThingProxy',
+            url: (u) => `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(u)}`,
             parse: (res) => res
         }
     ];
@@ -104,8 +117,13 @@ async function fetchIGDataWithProxy(url, retries = 2) {
     for (let i = 0; i < retries; i++) {
         for (const proxy of proxies) {
             try {
+                console.log(`Trying proxy: ${proxy.name}`);
                 const response = await fetch(proxy.url(cleanUrl));
-                if (!response.ok) continue;
+
+                if (!response.ok) {
+                    console.warn(`${proxy.name} failed with status: ${response.status}`);
+                    continue;
+                }
 
                 let content;
                 const contentType = response.headers.get('content-type');
@@ -117,7 +135,10 @@ async function fetchIGDataWithProxy(url, retries = 2) {
                     content = await response.text();
                 }
 
-                if (!content || typeof content !== 'string') continue;
+                if (!content || typeof content !== 'string' || content.length < 100) {
+                    console.warn(`${proxy.name} returned invalid or too short content.`);
+                    continue;
+                }
 
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(content, 'text/html');
@@ -238,6 +259,13 @@ extractBtn.addEventListener('click', async () => {
         showMessage(err.message || 'An error occurred.', 'error');
         resultSection.classList.add('hidden');
         extractBtn.disabled = false;
+    }
+});
+
+// Keyboard Trigger (Enter Key)
+igUrlInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        extractBtn.click();
     }
 });
 
