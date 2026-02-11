@@ -1,0 +1,9 @@
+# Local development
+node_modules/
+dist/
+.DS_Store
+
+# Agent Workspace
+.gemini/
+.agent/
+brain/
