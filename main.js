@@ -1,6 +1,6 @@
 /**
  * Instagram Post Extractor — Main Application Logic
- * v0.0.1 (Beta) — Rebuilt from scratch
+ * v0.1.0 (Beta) — FastDL helper workflow
  *
  * Features:
  *   - Instagram post/reel metadata extraction via CORS proxies

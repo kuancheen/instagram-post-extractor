@@ -1,13 +1,13 @@
 # Project Status Report
-Generated: 2026-02-11 16:10
+Generated: 2026-02-11 17:55
 
 ## Project Overview
 - **Name**: Instagram Post Extractor
-- **Current Version**: v0.0.1 (Beta)
-- **Status**: Active (Rebuilt from scratch)
+- **Current Version**: v0.1.0 (Beta)
+- **Status**: Active (FastDL helper integrated)
 
 ## Main Objective
-Rebuild the Instagram Post Extractor web app from scratch with a fresh codebase, following all `/new-project-init` compliance standards while preserving the core feature set.
+Rebuild the Instagram Post Extractor web app from scratch and integrate reliable fallback mechanisms (FastDL) to bypass Instagram's automated bot detection.
 
 ## Progress Summary
 ### Completed ✅
@@ -16,7 +16,8 @@ Rebuild the Instagram Post Extractor web app from scratch with a fresh codebase,
 - **Semantic HTML**: Proper `<header>`, `<main>`, `<section>`, `<footer>` with unique IDs and guided placeholders.
 - **Modular JS**: Grouped DOM refs, JSDoc comments, clean section organization, zero pop-up policy.
 - **Compliance**: HTML comment header, favicon, meta description, standardized footer, cache busting, copyright.
-- **Documentation Reset**: README badges at v0.0.1 (Beta), CHANGELOG with legacy archive section.
+- **FastDL Helper Workflow**: Integrated guided manual extraction via FastDL when automated proxies fail.
+- **CDN URL Resolution**: Automatically extracts Instagram CDN URLs from FastDL download links to allow inline display.
 
 ### In Progress 🔄
 - *None*

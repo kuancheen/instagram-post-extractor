@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0 (Beta)] - 2026-02-11
+### Added
+- **FastDL Helper Workflow**: When proxy extraction fails, a guided card appears with 3-step instructions to extract images via [FastDL](https://fastdl.app).
+- "Open FastDL" button pre-fills the Instagram URL for one-click access.
+- Secondary URL input for pasting comma-separated image URLs from FastDL.
+- "Load Images" button processes pasted URLs into the carousel viewer.
+- `resolveFastDLUrl()` function that extracts Instagram CDN URLs from FastDL download links (`uri=` parameter), fixing the `Content-Disposition: attachment` issue that prevented inline display.
+- Added `cdninstagram.com` to known image host detection patterns.
+
+### Changed
+- Proxy failure now triggers the FastDL helper instead of a generic error message.
+
 ## [0.0.1 (Beta)] - 2026-02-11
 ### Added
 - Rebuilt web app from scratch with fresh codebase.

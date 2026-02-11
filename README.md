@@ -1,6 +1,6 @@
 # Instagram Post Extractor
 
-![Version](https://img.shields.io/badge/version-v0.0.1%20(Beta)-blue)
+![Version](https://img.shields.io/badge/version-v0.1.0%20(Beta)-blue)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Semantic Versioning](https://img.shields.io/badge/semver-2.0.0-blue)
 ![Views](https://hits.sh/kuancheen.github.io/instagram-post-extractor.svg?view=today-total&style=flat&label=👁️%20Views&extraCount=0&color=6366f1)
@@ -22,6 +22,7 @@ Built to simplify the process of gathering textual information from social media
 - **Multi-Image Carousel**: Handle multiple comma-separated URLs with a thumbnail carousel for easy switching.
 - **OCR Engine**: Powerful text extraction from images powered by Tesseract.js with live progress.
 - **Proxy Reliability**: Automatic retries, proxy switching, and localStorage persistence for improved uptime.
+- **FastDL Helper**: Guided fallback workflow when proxies fail — extracts full-resolution carousel images via FastDL with automatic CDN URL resolution.
 - **Premium Design**: Glassmorphic dark-mode UI with animated gradients, smooth transitions, and micro-interactions.
 - **Responsive**: Fully functional on both desktop and mobile devices.
 - **Zero Pop-up Policy**: All feedback via inline, context-aware messaging — no `alert()` or `confirm()`.
