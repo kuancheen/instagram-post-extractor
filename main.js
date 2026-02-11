@@ -1,5 +1,5 @@
 // Instagram Post Extractor - Main Application Logic
-// v1.0.2
+// v1.0.3
 
 // Type definitions for CDN globals assumed to be loaded
 // lucide, Tesseract
@@ -84,11 +84,11 @@ async function fetchIGDataWithProxy(url, retries = 2) {
     }
 
     // List of proxies to try
-    const proxies = [
+    let proxies = [
         {
-            name: 'AllOrigins (GET)',
-            url: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}&ts=${Date.now()}`,
-            parse: (res) => res.contents
+            name: 'CodeTabs',
+            url: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+            parse: (res) => res
         },
         {
             name: 'AllOrigins (RAW)',
@@ -96,9 +96,9 @@ async function fetchIGDataWithProxy(url, retries = 2) {
             parse: (res) => res
         },
         {
-            name: 'CodeTabs',
-            url: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-            parse: (res) => res
+            name: 'AllOrigins (GET)',
+            url: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}&ts=${Date.now()}`,
+            parse: (res) => res.contents
         },
         {
             name: 'YACDN',
@@ -107,12 +107,23 @@ async function fetchIGDataWithProxy(url, retries = 2) {
         }
     ];
 
+    // Persistence: Prioritize the last successful proxy
+    const lastSuccess = localStorage.getItem('last_success_proxy');
+    if (lastSuccess) {
+        const index = proxies.findIndex(p => p.name === lastSuccess);
+        if (index > 0) {
+            const [successProxy] = proxies.splice(index, 1);
+            proxies.unshift(successProxy);
+            console.log(`Prioritizing last successful proxy: ${lastSuccess}`);
+        }
+    }
+
     let lastError;
 
     for (let i = 0; i < retries; i++) {
         for (const proxy of proxies) {
             try {
-                console.log(`Trying proxy: ${proxy.name}`);
+                console.log(`Trying proxy: ${proxy.name} (Attempt ${i + 1})`);
                 const response = await fetch(proxy.url(cleanUrl));
 
                 if (!response.ok) {
@@ -130,8 +141,8 @@ async function fetchIGDataWithProxy(url, retries = 2) {
                     content = await response.text();
                 }
 
-                if (!content || typeof content !== 'string' || content.length < 100) {
-                    console.warn(`${proxy.name} returned invalid or too short content.`);
+                if (!content || typeof content !== 'string' || content.length < 200) {
+                    console.warn(`${proxy.name} returned invalid or suspicious content (length: ${content?.length || 0}).`);
                     continue;
                 }
 
@@ -150,17 +161,22 @@ async function fetchIGDataWithProxy(url, retries = 2) {
                         ogImage.includes('gsyc6v');
 
                     if (!isLoginPage) {
+                        localStorage.setItem('last_success_proxy', proxy.name);
                         return {
                             imageUrl: ogImage,
                             description: ogDescription || 'No description found.'
                         };
+                    } else {
+                        console.warn(`${proxy.name} hit the Instagram login wall.`);
                     }
                 }
             } catch (err) {
+                console.error(`${proxy.name} fetch error:`, err);
                 lastError = err;
             }
         }
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log(`Retry ${i + 1} exhausted. Waiting 3s...`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
     }
 
     throw new Error('All extraction attempts failed. This can happen if the proxy services are overloaded or the post is private.');
