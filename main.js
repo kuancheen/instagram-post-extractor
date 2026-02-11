@@ -1,5 +1,5 @@
 // Instagram Post Extractor - Main Application Logic
-// v1.0.1
+// v1.0.2
 
 // Type definitions for CDN globals assumed to be loaded
 // lucide, Tesseract
@@ -96,18 +96,13 @@ async function fetchIGDataWithProxy(url, retries = 2) {
             parse: (res) => res
         },
         {
-            name: 'CORSProxy.io',
-            url: (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
-            parse: (res) => res
-        },
-        {
             name: 'CodeTabs',
             url: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
             parse: (res) => res
         },
         {
-            name: 'ThingProxy',
-            url: (u) => `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(u)}`,
+            name: 'YACDN',
+            url: (u) => `https://yacdn.org/proxy/${encodeURIComponent(u)}`,
             parse: (res) => res
         }
     ];
