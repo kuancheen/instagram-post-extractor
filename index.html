@@ -63,6 +63,39 @@
         </div>
       </section>
 
+      <!-- FastDL Helper (shown when proxy extraction fails) -->
+      <section id="fastdl-helper" class="fastdl-helper glass hidden">
+        <div class="fastdl-helper__header">
+          <i data-lucide="external-link"></i>
+          <h3>Extract via FastDL</h3>
+        </div>
+        <p class="fastdl-helper__desc">Proxy extraction failed. Use FastDL to get the image URLs, then paste them below.
+        </p>
+
+        <div class="fastdl-helper__steps">
+          <div class="step"><span class="step__num">1</span><span>Click <strong>Open FastDL</strong> and wait for the
+              images to load</span></div>
+          <div class="step"><span class="step__num">2</span><span>Right-click each image → <strong>Copy Image
+                Address</strong></span></div>
+          <div class="step"><span class="step__num">3</span><span>Paste all URLs below <em>(comma-separated)</em> and
+              click <strong>Load Images</strong></span></div>
+        </div>
+
+        <a id="fastdl-open-btn" class="btn-fastdl" href="#" target="_blank" rel="noopener noreferrer">
+          <i data-lucide="external-link"></i>
+          <span>Open FastDL</span>
+        </a>
+
+        <div class="fastdl-helper__input">
+          <input type="text" id="fastdl-urls" class="input-group__field"
+            placeholder="Paste image URLs from FastDL here (comma-separated)" autocomplete="off" />
+          <button id="fastdl-load-btn" class="input-group__btn">
+            <span>Load Images</span>
+            <i data-lucide="download"></i>
+          </button>
+        </div>
+      </section>
+
       <!-- Results -->
       <section id="result-container" class="result-section hidden">
         <div class="result-grid">

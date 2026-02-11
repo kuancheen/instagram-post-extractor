@@ -45,6 +45,11 @@ const dom = {
     runOcrBtn: document.getElementById('run-ocr-btn'),
     ocrStatus: document.getElementById('ocr-status'),
     inputSection: document.getElementById('input-section'),
+    // FastDL Helper
+    fastdlHelper: document.getElementById('fastdl-helper'),
+    fastdlOpenBtn: document.getElementById('fastdl-open-btn'),
+    fastdlUrls: document.getElementById('fastdl-urls'),
+    fastdlLoadBtn: document.getElementById('fastdl-load-btn'),
 };
 
 const tabBtns = document.querySelectorAll('.tab-btn');
@@ -283,7 +288,7 @@ async function fetchIGDataWithProxy(rawInput, retries = 2) {
     }
 
     throw new Error(
-        'All extraction attempts failed. The proxy services may be overloaded, or the post is private.'
+        'FASTDL_FALLBACK::' + cleanUrl
     );
 }
 
@@ -395,11 +400,55 @@ function renderCarousel(images) {
 // Event Handlers
 // ──────────────────────────────────────────────
 
+/**
+ * Shows the FastDL helper card with a pre-filled link to FastDL.
+ * @param {string} igUrl - The original Instagram URL the user entered
+ */
+function showFastDLHelper(igUrl) {
+    const fastdlUrl = `https://fastdl.app/en2?url=${encodeURIComponent(igUrl)}`;
+    dom.fastdlOpenBtn.href = fastdlUrl;
+    dom.fastdlHelper.classList.remove('hidden');
+    dom.fastdlUrls.value = '';
+    dom.fastdlUrls.focus();
+    initIcons();
+}
+
+/** Hides the FastDL helper card */
+function hideFastDLHelper() {
+    dom.fastdlHelper.classList.add('hidden');
+}
+
+/**
+ * Processes URLs pasted into the FastDL helper input.
+ * Accepts comma-separated image URLs from FastDL or any source.
+ */
+function loadFastDLImages() {
+    const raw = dom.fastdlUrls.value.trim();
+    if (!raw) return;
+
+    const urls = raw.split(/[\s,]+/).filter((u) => u.startsWith('http'));
+    if (urls.length === 0) {
+        showMessage('No valid URLs found. Paste the image addresses from FastDL.', 'error');
+        return;
+    }
+
+    hideFastDLHelper();
+
+    currentImages = urls;
+    dom.postDescription.value = `Extracted ${urls.length} image(s) via FastDL helper.`;
+    dom.resultContainer.classList.remove('hidden');
+
+    renderCarousel(currentImages);
+    updateActiveImage(0);
+    showMessage(`Loaded ${urls.length} image(s) successfully.`, 'success');
+}
+
 /** Main extraction trigger */
 dom.extractBtn.addEventListener('click', async () => {
     const url = dom.urlInput.value.trim();
     if (!url) return;
 
+    hideFastDLHelper();
     dom.extractBtn.disabled = true;
     dom.resultContainer.classList.remove('hidden');
     dom.imageLoader.classList.remove('hidden');
@@ -420,8 +469,17 @@ dom.extractBtn.addEventListener('click', async () => {
         updateActiveImage(0);
     } catch (err) {
         console.error('Extraction error:', err);
-        showMessage(err.message || 'An unexpected error occurred.', 'error');
-        dom.resultContainer.classList.add('hidden');
+
+        // Check if this is a FastDL fallback trigger
+        if (err.message && err.message.startsWith('FASTDL_FALLBACK::')) {
+            const igUrl = err.message.replace('FASTDL_FALLBACK::', '');
+            dom.resultContainer.classList.add('hidden');
+            showFastDLHelper(igUrl);
+            showMessage('Proxy extraction failed — use FastDL to extract images manually.', 'info');
+        } else {
+            showMessage(err.message || 'An unexpected error occurred.', 'error');
+            dom.resultContainer.classList.add('hidden');
+        }
     } finally {
         dom.extractBtn.disabled = false;
     }
@@ -440,4 +498,12 @@ dom.runOcrBtn.addEventListener('click', () => {
     if (imageUrl) {
         runOCR(getProxiedUrl(imageUrl));
     }
+});
+
+/** FastDL helper: Load Images button */
+dom.fastdlLoadBtn.addEventListener('click', loadFastDLImages);
+
+/** FastDL helper: Enter key triggers load */
+dom.fastdlUrls.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') loadFastDLImages();
 });
