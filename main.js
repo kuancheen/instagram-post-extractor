@@ -1,173 +1,244 @@
-// Instagram Post Extractor - Main Application Logic
-// v1.1.0
+/**
+ * Instagram Post Extractor — Main Application Logic
+ * v0.0.1 (Beta) — Rebuilt from scratch
+ *
+ * Features:
+ *   - Instagram post/reel metadata extraction via CORS proxies
+ *   - Direct image URL support (with comma-separated multi-URL input)
+ *   - Carousel UI for multi-image posts
+ *   - OCR via Tesseract.js
+ *   - Inline messaging (zero pop-up policy)
+ *   - Proxy persistence via localStorage
+ */
 
-// Type definitions for CDN globals assumed to be loaded
-// lucide, Tesseract
+// ──────────────────────────────────────────────
+// Icon Initialization
+// ──────────────────────────────────────────────
 
-// Initialize Lucide icons
+/** Safely initialize Lucide icons */
 function initIcons() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
 }
 
-// Wait for Lucide to load
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initIcons);
 } else {
     initIcons();
 }
 
-// Elements
-const igUrlInput = document.getElementById('ig-url');
-const extractBtn = document.getElementById('extract-btn');
-const resultSection = document.getElementById('result-container');
-const postImage = document.getElementById('post-image');
-const imagePlaceholder = document.getElementById('image-placeholder');
-const imageLoader = document.getElementById('image-loader');
-const carouselContainer = document.getElementById('carousel-container');
-const postDescription = document.getElementById('post-description');
-const ocrText = document.getElementById('ocr-text');
-const runOcrBtn = document.getElementById('run-ocr-btn');
-const ocrStatus = document.getElementById('ocr-status');
+// ──────────────────────────────────────────────
+// DOM References
+// ──────────────────────────────────────────────
+
+const dom = {
+    urlInput: document.getElementById('ig-url'),
+    extractBtn: document.getElementById('extract-btn'),
+    resultContainer: document.getElementById('result-container'),
+    postImage: document.getElementById('post-image'),
+    imagePlaceholder: document.getElementById('image-placeholder'),
+    imageLoader: document.getElementById('image-loader'),
+    carouselContainer: document.getElementById('carousel-container'),
+    postDescription: document.getElementById('post-description'),
+    ocrText: document.getElementById('ocr-text'),
+    runOcrBtn: document.getElementById('run-ocr-btn'),
+    ocrStatus: document.getElementById('ocr-status'),
+    inputSection: document.getElementById('input-section'),
+};
+
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
-const copyBtns = document.querySelectorAll('.copy-btn');
+const copyBtns = document.querySelectorAll('.btn-copy');
 
-// State
+// ──────────────────────────────────────────────
+// Application State
+// ──────────────────────────────────────────────
+
 let currentImages = [];
 let activeImageIndex = 0;
 
-// Tab switching logic
-tabBtns.forEach(btn => {
+// ──────────────────────────────────────────────
+// Tab Switching
+// ──────────────────────────────────────────────
+
+tabBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
         const tabId = btn.dataset.tab;
-        tabBtns.forEach(b => b.classList.remove('active'));
+
+        tabBtns.forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
 
-        tabContents.forEach(content => {
-            content.classList.add('hidden');
-            if (content.id === `${tabId}-tab`) {
-                content.classList.remove('hidden');
-            }
+        tabContents.forEach((content) => {
+            content.classList.toggle('hidden', content.id !== `${tabId}-tab`);
         });
     });
 });
 
-// Copy logic
-copyBtns.forEach(btn => {
+// ──────────────────────────────────────────────
+// Copy to Clipboard
+// ──────────────────────────────────────────────
+
+copyBtns.forEach((btn) => {
     btn.addEventListener('click', async () => {
         const targetId = btn.dataset.target;
         if (!targetId) return;
+
         const textarea = document.getElementById(targetId);
-        if (!textarea.value) return;
+        if (!textarea || !textarea.value) return;
 
         try {
             await navigator.clipboard.writeText(textarea.value);
-            const span = btn.querySelector('span');
-            if (span) {
-                const originalText = span.textContent;
-                span.textContent = 'Copied!';
-                setTimeout(() => {
-                    span.textContent = originalText;
-                }, 2000);
+            const label = btn.querySelector('span');
+            if (label) {
+                const original = label.textContent;
+                label.textContent = 'Copied!';
+                setTimeout(() => { label.textContent = original; }, 2000);
             }
         } catch (err) {
-            console.error('Failed to copy text: ', err);
+            console.error('Clipboard write failed:', err);
         }
     });
 });
 
+// ──────────────────────────────────────────────
+// URL Helpers
+// ──────────────────────────────────────────────
+
 /**
- * Detects if a URL is a direct image link or from a known media proxy
+ * Detects whether a URL points directly to an image file
+ * or is served from a known image proxy/CDN.
+ * @param {string} url
+ * @returns {boolean}
  */
 function isDirectImageUrl(url) {
-    const directImageRegex = /\.(jpg|jpeg|png|webp|gif|avif|heic)/i;
-    const commonHosts = /unsplash\.com|picsum\.photos|fastdl\.app/i;
-    return directImageRegex.test(url) || commonHosts.test(url);
+    const imageExtPattern = /\.(jpg|jpeg|png|webp|gif|avif|heic)/i;
+    const knownImageHosts = /unsplash\.com|picsum\.photos|fastdl\.app/i;
+    return imageExtPattern.test(url) || knownImageHosts.test(url);
 }
 
 /**
- * Returns a proxied URL to bypass CORS for images
+ * Wraps a URL through AllOrigins RAW to bypass CORS for images.
+ * @param {string} url
+ * @returns {string}
  */
 function getProxiedUrl(url) {
     if (!url) return '';
-    // Use AllOrigins RAW for best compatibility with images
     return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
 }
 
-// Instagram Data Extraction with Retry and Fallback
-async function fetchIGDataWithProxy(url, retries = 2) {
-    const urls = url.split(/[\s,]+/).filter(u => u.length > 5);
+// ──────────────────────────────────────────────
+// Inline Message System (Zero Pop-up Policy)
+// ──────────────────────────────────────────────
 
-    // If we have multiple URLs or direct image URLs, process them differently
+/**
+ * Displays a dismissable inline message below the input section.
+ * @param {string} message
+ * @param {'info'|'error'|'success'} type
+ */
+function showMessage(message, type = 'info') {
+    // Remove any existing message first
+    const existing = dom.inputSection.querySelector('.inline-msg');
+    if (existing) existing.remove();
+
+    const el = document.createElement('div');
+    el.className = `inline-msg inline-msg--${type}`;
+    el.textContent = message;
+
+    dom.inputSection.appendChild(el);
+
+    setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 500);
+    }, 5000);
+}
+
+// ──────────────────────────────────────────────
+// Instagram Data Extraction
+// ──────────────────────────────────────────────
+
+/** CORS proxy definitions */
+const PROXIES = [
+    {
+        name: 'CodeTabs',
+        buildUrl: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+        parse: (res) => res,
+    },
+    {
+        name: 'AllOrigins (RAW)',
+        buildUrl: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}&ts=${Date.now()}`,
+        parse: (res) => res,
+    },
+    {
+        name: 'AllOrigins (GET)',
+        buildUrl: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}&ts=${Date.now()}`,
+        parse: (res) => res.contents,
+    },
+    {
+        name: 'YACDN',
+        buildUrl: (u) => `https://yacdn.org/proxy/${encodeURIComponent(u)}`,
+        parse: (res) => res,
+    },
+];
+
+/**
+ * Extracts Instagram post metadata through CORS proxies with retry logic.
+ * Supports direct image URLs and comma-separated multi-URL input.
+ *
+ * @param {string} rawInput - User-entered URL string
+ * @param {number} retries  - Number of retry passes over all proxies
+ * @returns {Promise<{images: string[], description: string}>}
+ */
+async function fetchIGDataWithProxy(rawInput, retries = 2) {
+    const urls = rawInput.split(/[\s,]+/).filter((u) => u.length > 5);
+
+    // Direct image mode: skip proxy scraping entirely
     if (urls.length > 1 || isDirectImageUrl(urls[0])) {
-        const images = urls.filter(u => isDirectImageUrl(u));
+        const images = urls.filter(isDirectImageUrl);
         if (images.length > 0) {
             return {
-                images: images,
-                description: 'Direct image extraction. No Instagram metadata available.'
+                images,
+                description: 'Direct image extraction — no Instagram metadata available.',
             };
         }
     }
 
+    // Validate Instagram URL
     const cleanUrl = urls[0].split('?')[0];
     if (!cleanUrl.includes('instagram.com/p/') && !cleanUrl.includes('instagram.com/reels/')) {
         throw new Error('Please enter a valid Instagram post or reel URL.');
     }
 
-    // List of proxies to try
-    let proxies = [
-        {
-            name: 'CodeTabs',
-            url: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-            parse: (res) => res
-        },
-        {
-            name: 'AllOrigins (RAW)',
-            url: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}&ts=${Date.now()}`,
-            parse: (res) => res
-        },
-        {
-            name: 'AllOrigins (GET)',
-            url: (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}&ts=${Date.now()}`,
-            parse: (res) => res.contents
-        },
-        {
-            name: 'YACDN',
-            url: (u) => `https://yacdn.org/proxy/${encodeURIComponent(u)}`,
-            parse: (res) => res
-        }
-    ];
-
-    // Persistence: Prioritize the last successful proxy
-    const lastSuccess = localStorage.getItem('last_success_proxy');
+    // Build ordered proxy list, prioritizing last successful proxy
+    const proxies = [...PROXIES];
+    const lastSuccess = localStorage.getItem('ipe_last_proxy');
     if (lastSuccess) {
-        const index = proxies.findIndex(p => p.name === lastSuccess);
-        if (index > 0) {
-            const [successProxy] = proxies.splice(index, 1);
-            proxies.unshift(successProxy);
-            console.log(`Prioritizing last successful proxy: ${lastSuccess}`);
+        const idx = proxies.findIndex((p) => p.name === lastSuccess);
+        if (idx > 0) {
+            const [preferred] = proxies.splice(idx, 1);
+            proxies.unshift(preferred);
+            console.log(`[Proxy] Prioritizing: ${lastSuccess}`);
         }
     }
 
     let lastError;
 
-    for (let i = 0; i < retries; i++) {
+    for (let attempt = 0; attempt < retries; attempt++) {
         for (const proxy of proxies) {
             try {
-                console.log(`Trying proxy: ${proxy.name} (Attempt ${i + 1})`);
-                const response = await fetch(proxy.url(cleanUrl));
+                console.log(`[Proxy] Trying ${proxy.name} (attempt ${attempt + 1})`);
+                const response = await fetch(proxy.buildUrl(cleanUrl));
 
                 if (!response.ok) {
-                    console.warn(`${proxy.name} failed with status: ${response.status}`);
+                    console.warn(`[Proxy] ${proxy.name} → HTTP ${response.status}`);
                     continue;
                 }
 
+                // Parse response based on content type
                 let content;
-                const contentType = response.headers.get('content-type');
+                const ct = response.headers.get('content-type');
 
-                if (contentType && contentType.includes('application/json')) {
+                if (ct && ct.includes('application/json')) {
                     const data = await response.json();
                     content = proxy.parse(data);
                 } else {
@@ -175,92 +246,88 @@ async function fetchIGDataWithProxy(url, retries = 2) {
                 }
 
                 if (!content || typeof content !== 'string' || content.length < 200) {
-                    console.warn(`${proxy.name} returned invalid or suspicious content (length: ${content?.length || 0}).`);
+                    console.warn(`[Proxy] ${proxy.name} → suspicious response (${content?.length || 0} chars)`);
                     continue;
                 }
 
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(content, 'text/html');
-
+                // Extract OG meta tags
+                const doc = new DOMParser().parseFromString(content, 'text/html');
                 const ogImage = doc.querySelector('meta[property="og:image"]')?.getAttribute('content');
-                const ogDescription = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') ||
-                    doc.querySelector('meta[name="description"]')?.getAttribute('content');
+                const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute('content')
+                    || doc.querySelector('meta[name="description"]')?.getAttribute('content');
 
                 if (ogImage) {
-                    // Check if we got redirected to the login page (common for bots)
+                    // Detect Instagram login wall
                     const title = doc.querySelector('title')?.textContent || '';
-                    const isLoginPage = title.toLowerCase().includes('login') ||
-                        (ogDescription && ogDescription.toLowerCase().includes('log in')) ||
-                        ogImage.includes('gsyc6v');
+                    const isLoginWall = title.toLowerCase().includes('login')
+                        || (ogDesc && ogDesc.toLowerCase().includes('log in'))
+                        || ogImage.includes('gsyc6v');
 
-                    if (!isLoginPage) {
-                        localStorage.setItem('last_success_proxy', proxy.name);
+                    if (!isLoginWall) {
+                        localStorage.setItem('ipe_last_proxy', proxy.name);
                         return {
                             images: [ogImage],
-                            description: ogDescription || 'No description found.'
+                            description: ogDesc || 'No description found.',
                         };
-                    } else {
-                        console.warn(`${proxy.name} hit the Instagram login wall.`);
                     }
+                    console.warn(`[Proxy] ${proxy.name} → hit Instagram login wall`);
                 }
             } catch (err) {
-                console.error(`${proxy.name} fetch error:`, err);
+                console.error(`[Proxy] ${proxy.name} error:`, err);
                 lastError = err;
             }
         }
-        console.log(`Retry ${i + 1} exhausted. Waiting 3s...`);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        console.log(`[Proxy] Attempt ${attempt + 1} exhausted. Waiting 3s…`);
+        await new Promise((r) => setTimeout(r, 3000));
     }
 
-    throw new Error('All extraction attempts failed. This can happen if the proxy services are overloaded or the post is private.');
+    throw new Error(
+        'All extraction attempts failed. The proxy services may be overloaded, or the post is private.'
+    );
 }
 
-// Inline Message System (Replacing alert per Zero Pop-up Policy)
-function showMessage(msg, type = 'info') {
-    const statusDiv = document.createElement('div');
-    statusDiv.className = `inline-message ${type}`;
-    statusDiv.textContent = msg;
+// ──────────────────────────────────────────────
+// OCR Engine
+// ──────────────────────────────────────────────
 
-    const container = document.querySelector('.input-section');
-    const existing = container.querySelector('.inline-message');
-    if (existing) existing.remove();
-
-    container.appendChild(statusDiv);
-    setTimeout(() => {
-        statusDiv.style.opacity = '0';
-        setTimeout(() => statusDiv.remove(), 500);
-    }, 5000);
-}
-
-// OCR Logic
+/**
+ * Runs Tesseract OCR on the given image source.
+ * @param {string} imageSrc - URL of the image to scan
+ */
 async function runOCR(imageSrc) {
-    ocrStatus.innerHTML = '<span class="loader-sm"></span><span>Running OCR...</span>';
-    runOcrBtn.disabled = true;
-    ocrText.value = '';
+    dom.ocrStatus.innerHTML = '<span class="loader-sm"></span><span>Running OCR…</span>';
+    dom.runOcrBtn.disabled = true;
+    dom.ocrText.value = '';
 
     try {
         const result = await Tesseract.recognize(imageSrc, 'eng', {
             logger: (m) => {
                 if (m.status === 'recognizing text') {
-                    const span = ocrStatus.querySelector('span:last-child');
+                    const span = dom.ocrStatus.querySelector('span:last-child');
                     if (span) span.textContent = `Scanning: ${Math.round(m.progress * 100)}%`;
                 }
-            }
+            },
         });
 
-        ocrText.value = result.data.text;
-        ocrStatus.innerHTML = '<i data-lucide="check-circle"></i><span>OCR Complete</span>';
+        dom.ocrText.value = result.data.text;
+        dom.ocrStatus.innerHTML = '<i data-lucide="check-circle"></i><span>OCR Complete</span>';
         initIcons();
     } catch (err) {
-        console.error('OCR Error:', err);
-        ocrStatus.innerHTML = '<span class="error">OCR failed. Image may have CORS restrictions.</span>';
+        console.error('OCR error:', err);
+        dom.ocrStatus.innerHTML = '<span class="error">OCR failed — image may have CORS restrictions.</span>';
     } finally {
-        runOcrBtn.disabled = false;
+        dom.runOcrBtn.disabled = false;
     }
 }
 
+// ──────────────────────────────────────────────
+// Carousel
+// ──────────────────────────────────────────────
+
 /**
- * Updates the main preview image and UI state
+ * Updates the main preview to show the image at the given index.
+ * @param {number} index
  */
 function updateActiveImage(index) {
     if (!currentImages[index]) return;
@@ -268,100 +335,107 @@ function updateActiveImage(index) {
     activeImageIndex = index;
     const url = currentImages[index];
 
-    imageLoader.classList.remove('hidden');
-    postImage.classList.add('hidden');
-    imagePlaceholder.classList.add('hidden');
+    dom.imageLoader.classList.remove('hidden');
+    dom.postImage.classList.add('hidden');
+    dom.imagePlaceholder.classList.add('hidden');
 
-    // Reset OCR status when switching images
-    ocrStatus.innerHTML = '<i data-lucide="scan"></i><span>Click extract to start OCR</span>';
-    ocrText.value = '';
+    // Reset OCR state
+    dom.ocrStatus.innerHTML = '<i data-lucide="scan"></i><span>Run OCR to extract text from the image</span>';
+    dom.ocrText.value = '';
     initIcons();
 
-    const proxiedImg = getProxiedUrl(url);
-    postImage.src = proxiedImg;
+    const proxiedUrl = getProxiedUrl(url);
+    dom.postImage.src = proxiedUrl;
 
-    postImage.onload = () => {
-        imageLoader.classList.add('hidden');
-        postImage.classList.remove('hidden');
-        runOcrBtn.disabled = false;
+    dom.postImage.onload = () => {
+        dom.imageLoader.classList.add('hidden');
+        dom.postImage.classList.remove('hidden');
+        dom.runOcrBtn.disabled = false;
     };
 
-    postImage.onerror = () => {
-        imageLoader.classList.add('hidden');
-        imagePlaceholder.classList.remove('hidden');
-        imagePlaceholder.innerHTML = '<i data-lucide="alert-circle"></i><span>Image Proxy Error</span>';
+    dom.postImage.onerror = () => {
+        dom.imageLoader.classList.add('hidden');
+        dom.imagePlaceholder.classList.remove('hidden');
+        dom.imagePlaceholder.innerHTML =
+            '<i data-lucide="alert-circle"></i><span>Could not load image</span>';
         initIcons();
-        showMessage('Could not load this image via proxy.', 'error');
+        showMessage('Could not load this image via the proxy.', 'error');
     };
 
-    // Update thumbnail selection
+    // Update thumbnail highlights
     document.querySelectorAll('.carousel-thumb').forEach((thumb, i) => {
         thumb.classList.toggle('active', i === index);
     });
 }
 
 /**
- * Renders multiple thumbnails if a post has multiple images
+ * Renders carousel thumbnails when multiple images are available.
+ * @param {string[]} images
  */
 function renderCarousel(images) {
-    carouselContainer.innerHTML = '';
+    dom.carouselContainer.innerHTML = '';
+
     if (images.length <= 1) {
-        carouselContainer.classList.add('hidden');
+        dom.carouselContainer.classList.add('hidden');
         return;
     }
 
-    carouselContainer.classList.remove('hidden');
-    images.forEach((url, index) => {
+    dom.carouselContainer.classList.remove('hidden');
+
+    images.forEach((url, i) => {
         const thumb = document.createElement('div');
-        thumb.className = `carousel-thumb ${index === 0 ? 'active' : ''}`;
-        thumb.innerHTML = `<img src="${getProxiedUrl(url)}" alt="Thumb ${index + 1}">`;
-        thumb.addEventListener('click', () => updateActiveImage(index));
-        carouselContainer.appendChild(thumb);
+        thumb.className = `carousel-thumb${i === 0 ? ' active' : ''}`;
+        thumb.innerHTML = `<img src="${getProxiedUrl(url)}" alt="Image ${i + 1}" />`;
+        thumb.addEventListener('click', () => updateActiveImage(i));
+        dom.carouselContainer.appendChild(thumb);
     });
 }
 
-// Extraction Trigger
-extractBtn.addEventListener('click', async () => {
-    const url = igUrlInput.value.trim();
+// ──────────────────────────────────────────────
+// Event Handlers
+// ──────────────────────────────────────────────
+
+/** Main extraction trigger */
+dom.extractBtn.addEventListener('click', async () => {
+    const url = dom.urlInput.value.trim();
     if (!url) return;
 
-    extractBtn.disabled = true;
-    resultSection.classList.remove('hidden');
-    imageLoader.classList.remove('hidden');
-    postImage.classList.add('hidden');
-    imagePlaceholder.classList.add('hidden');
-    carouselContainer.classList.add('hidden');
-    postDescription.value = '';
-    ocrText.value = '';
-    runOcrBtn.disabled = true;
+    dom.extractBtn.disabled = true;
+    dom.resultContainer.classList.remove('hidden');
+    dom.imageLoader.classList.remove('hidden');
+    dom.postImage.classList.add('hidden');
+    dom.imagePlaceholder.classList.add('hidden');
+    dom.carouselContainer.classList.add('hidden');
+    dom.postDescription.value = '';
+    dom.ocrText.value = '';
+    dom.runOcrBtn.disabled = true;
 
     try {
         const data = await fetchIGDataWithProxy(url);
 
         currentImages = data.images;
-        postDescription.value = data.description;
+        dom.postDescription.value = data.description;
 
         renderCarousel(currentImages);
         updateActiveImage(0);
-
-        extractBtn.disabled = false;
-
     } catch (err) {
-        console.error('Extraction Error:', err);
-        showMessage(err.message || 'An error occurred.', 'error');
-        resultSection.classList.add('hidden');
-        extractBtn.disabled = false;
+        console.error('Extraction error:', err);
+        showMessage(err.message || 'An unexpected error occurred.', 'error');
+        dom.resultContainer.classList.add('hidden');
+    } finally {
+        dom.extractBtn.disabled = false;
     }
 });
 
-// Keyboard Trigger (Enter Key)
-igUrlInput.addEventListener('keypress', (e) => {
+/** Enter key triggers extraction */
+dom.urlInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
-        extractBtn.click();
+        dom.extractBtn.click();
     }
 });
 
-runOcrBtn.addEventListener('click', () => {
+/** Run OCR on the currently active image */
+dom.runOcrBtn.addEventListener('click', () => {
     const imageUrl = currentImages[activeImageIndex];
     if (imageUrl) {
         runOCR(getProxiedUrl(imageUrl));

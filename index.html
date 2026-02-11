@@ -1,6 +1,6 @@
 <!--
   Application: Instagram Post Extractor
-  Description: Extracts post descriptions and image text (OCR) from Instagram posts and reels.
+  Description: Extracts post descriptions and image text (OCR) from Instagram posts, reels, and direct image URLs.
   Author: kuancheen
   Copyright: 2026
 -->
@@ -10,11 +10,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Instagram Post Extractor | OCR & Meta</title>
+  <title>Instagram Post Extractor | OCR &amp; Meta</title>
+  <meta name="description"
+    content="Extract post descriptions and perform OCR on images from public Instagram posts, reels, and direct image links.">
 
   <!-- Favicon -->
   <link rel="icon" type="image/svg+xml"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23bc1888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='20' height='20' x='2' y='2' rx='5' ry='5'%3E%3C/rect%3E%3Cpath d='M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z'%3E%3C/path%3E%3Cline x1='17.5' x2='17.51' y1='6.5' y2='6.5'%3E%3C/line%3E%3C/svg%3E" />
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23d62976' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='20' height='20' x='2' y='2' rx='5' ry='5'%3E%3C/rect%3E%3Cpath d='M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z'%3E%3C/path%3E%3Cline x1='17.5' x2='17.51' y1='6.5' y2='6.5'%3E%3C/line%3E%3C/svg%3E" />
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,45 +27,50 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-  <!-- Internal Assets with Cache Bursting -->
-  <link rel="stylesheet" href="style.css?v=1.1.0">
+  <!-- Internal Assets with Cache Busting -->
+  <link rel="stylesheet" href="style.css?v=0.0.1">
 </head>
 
 <body>
   <div id="app">
-    <div class="background-blobs">
-      <div class="blob blob-1"></div>
-      <div class="blob blob-2"></div>
-      <div class="blob blob-3"></div>
+    <!-- Animated Background -->
+    <div class="bg-canvas">
+      <div class="orb orb--pink"></div>
+      <div class="orb orb--blue"></div>
+      <div class="orb orb--gold"></div>
     </div>
 
     <main class="container">
+      <!-- Header -->
       <header class="header">
-        <div class="logo">
+        <div class="header__logo">
           <i data-lucide="instagram"></i>
           <h1>Instagram Post Extractor</h1>
         </div>
-        <p class="subtitle">Extract meta descriptions and text from image posts or direct links instantly.</p>
-        <p class="version-tag">Project Version: v1.1.0</p>
+        <p class="header__subtitle">Extract metadata and text from Instagram posts or direct image links instantly.</p>
+        <span class="header__version">v0.0.1 (Beta)</span>
       </header>
 
-      <section class="input-section glass">
+      <!-- Input -->
+      <section id="input-section" class="input-section glass">
         <div class="input-group">
-          <input type="text" id="ig-url" placeholder="Paste Instagram link or direct image URLs (separated by commas)"
-            autocomplete="off">
-          <button id="extract-btn">
+          <input type="text" id="ig-url" class="input-group__field"
+            placeholder="Paste an Instagram link or image URLs (comma-separated)" autocomplete="off" />
+          <button id="extract-btn" class="input-group__btn">
             <span>Extract</span>
             <i data-lucide="arrow-right"></i>
           </button>
         </div>
       </section>
 
+      <!-- Results -->
       <section id="result-container" class="result-section hidden">
         <div class="result-grid">
+          <!-- Image Preview -->
           <div class="image-card glass">
             <div class="image-wrapper">
               <div id="image-loader" class="loader hidden"></div>
-              <img id="post-image" src="" alt="Post Image" class="hidden">
+              <img id="post-image" src="" alt="Post Image" class="hidden" />
               <div id="image-placeholder" class="placeholder">
                 <i data-lucide="image"></i>
                 <span>Image Preview</span>
@@ -72,32 +79,36 @@
             <div id="carousel-container" class="carousel-thumbs hidden"></div>
           </div>
 
+          <!-- Data Panel -->
           <div class="data-card glass">
             <div class="tabs">
-              <button class="tab-btn active" data-tab="description">Description</button>
-              <button class="tab-btn" data-tab="ocr">OCR Text</button>
+              <button id="tab-description" class="tab-btn active" data-tab="description">Description</button>
+              <button id="tab-ocr" class="tab-btn" data-tab="ocr">OCR Text</button>
             </div>
 
+            <!-- Description Tab -->
             <div class="tab-content" id="description-tab">
-              <textarea id="post-description" readonly placeholder="Post description will appear here..."></textarea>
-              <button class="copy-btn" data-target="post-description">
+              <textarea id="post-description" readonly
+                placeholder="Post description will appear here after extraction..."></textarea>
+              <button class="btn-copy" data-target="post-description">
                 <i data-lucide="copy"></i>
                 <span>Copy Description</span>
               </button>
             </div>
 
+            <!-- OCR Tab -->
             <div class="tab-content hidden" id="ocr-tab">
               <div id="ocr-status" class="status-msg">
                 <i data-lucide="scan"></i>
-                <span>Click extract to start OCR</span>
+                <span>Run OCR to extract text from the image</span>
               </div>
-              <textarea id="ocr-text" readonly placeholder="OCR text will appear here..."></textarea>
-              <div class="action-group">
-                <button id="run-ocr-btn" class="secondary-btn" disabled>
+              <textarea id="ocr-text" readonly placeholder="OCR results will appear here..."></textarea>
+              <div class="btn-row">
+                <button id="run-ocr-btn" class="btn-secondary" disabled>
                   <i data-lucide="zap"></i>
                   <span>Run OCR</span>
                 </button>
-                <button class="copy-btn" data-target="ocr-text">
+                <button class="btn-copy" data-target="ocr-text">
                   <i data-lucide="copy"></i>
                   <span>Copy Text</span>
                 </button>
@@ -107,24 +118,25 @@
         </div>
       </section>
 
+      <!-- Standardized Footer -->
       <footer class="footer">
         <p>
-          v1.1.0 |
+          v0.0.1 (Beta) |
           <a href="https://kuancheen.github.io/md-viewer/?https://github.com/kuancheen/instagram-post-extractor/blob/main/README.md"
             target="_blank">README</a> |
           <a href="https://kuancheen.github.io/md-viewer/?https://github.com/kuancheen/instagram-post-extractor/blob/main/CHANGELOG.md"
             target="_blank">CHANGELOG</a> |
-          &copy; 2026 <a href="https://github.com/kuancheen" target="_blank">kuancheen</a> |
+          &copy; <span id="year">2026</span> <a href="https://github.com/kuancheen" target="_blank">kuancheen</a> |
           <img
             src="https://hits.sh/kuancheen.github.io/instagram-post-extractor.svg?view=today-total&style=flat-square&label=👁️%20Views&extraCount=0&color=6366f1"
-            alt="Hits">
+            alt="Hits" />
         </p>
       </footer>
     </main>
   </div>
 
-  <!-- Main Logic with Cache Bursting -->
-  <script src="main.js?v=1.1.0"></script>
+  <!-- Main Logic with Cache Busting -->
+  <script src="main.js?v=0.0.1"></script>
 </body>
 
 </html>
